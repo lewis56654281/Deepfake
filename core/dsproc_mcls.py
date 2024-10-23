@@ -90,40 +90,34 @@ class MultiClassificationProcessor(torch.utils.data.Dataset):
                 self.img_labels_.append(self.ctg_name2idx_[ctg_name])
             print('log: category is %d(%s), image num is %d' % (self.ctg_name2idx_[ctg_name], ctg_name, len(img_paths)))
 
-    def load_data_from_txt(self, img_list_txt, ctg_list_txt):
+    def load_data_from_txt(self, img_list_txt, ctg_list_txt, base_path):
         """Load image from txt.
 
         Args:
-            img_list_txt: image txt, format is [file_path, ctg_idx].
-            ctg_list_txt: category txt, format is [ctg_name, ctg_idx].
+            img_list_txt: image txt, format is [file_name,ctg_idx].
+            ctg_list_txt: category txt, format is [ctg_name ctg_idx].
+            base_path: base path for the dataset.
         """
         # check
         assert os.path.exists(img_list_txt), 'log: does not exist: {}'.format(img_list_txt)
         assert os.path.exists(ctg_list_txt), 'log: does not exist: {}'.format(ctg_list_txt)
 
         # load category
-        # : open category info file
         with open(ctg_list_txt) as f:
             ctg_infos = [line.strip() for line in f.readlines()] 
-        # :load category name & category index
         for ctg_info in ctg_infos:
-            tmp      = ctg_info.split(' ')
-            ctg_name = tmp[0]
-            ctg_idx  = int(tmp[-1])
+            ctg_name, ctg_idx = ctg_info.split()  # 使用空格分割
+            ctg_idx = int(ctg_idx)
             self.ctg_name2idx_[ctg_name] = ctg_idx
             self.ctg_names_.append(ctg_name)
 
         # load sample
-        # : open image info file
         with open(img_list_txt) as f:
             img_infos = [line.strip() for line in f.readlines()]
-        # : load image path & category index
         for img_info in img_infos:
-            tmp      = img_info.split(' ')
-
-            img_path = ' '.join(tmp[:-1])
-            img_name = img_path.split('/')[-1]
-            ctg_idx  = int(tmp[-1])
+            img_name, ctg_idx = img_info.split(',')  # 使用逗号分割
+            img_path = os.path.join(base_path, img_name)
+            ctg_idx = int(ctg_idx)
             self.img_names_.append(img_name)
             self.img_paths_.append(img_path)
             self.img_labels_.append(ctg_idx)

@@ -10,7 +10,7 @@ from core.dsproc_mcls import MultiClassificationProcessor
 from core.mengine import TrainEngine
 from toolkit.dtransform import create_transforms_inference, transforms_imagenet_train
 from toolkit.yacs import CfgNode as CN
-from timm.utils import ModelEmaV3
+from timm.utils import ModelEmaV2
 
 import warnings
 
@@ -24,9 +24,9 @@ print(torch.cuda.is_available())
 cfg = CN(new_allowed=True)
 
 # dataset dir
-ctg_list = './dataset/label.txt'
-train_list = './dataset/train.txt'
-val_list = './dataset/val.txt'
+ctg_list = '/home/tiancheng/Deepfake/DeepFakeDefenders/dataset/phase1/label.txt'
+train_list = '/home/tiancheng/Deepfake/DeepFakeDefenders/dataset/phase1/train.txt'
+val_list = '/home/tiancheng/Deepfake/DeepFakeDefenders/dataset/phase1/val.txt'
 
 # : network
 cfg.network = CN(new_allowed=True)
@@ -46,12 +46,15 @@ cfg.train.batch_size = 16
 cfg.train.epoch_num = 20
 cfg.train.epoch_start = 0
 cfg.train.worker_num = 8
+cfg.train.use_full_data = True  # 设置为False时使用部分数据
+cfg.train.partial_data_ratio = 1.0  # 使用10%的数据进行初步训练
 
 # : optimizer params
 cfg.optimizer = CN(new_allowed=True)
+cfg.optimizer.name = 'adamw'  # 或 'adam' 或 'sgd'
 cfg.optimizer.lr = 1e-4 * 1
 cfg.optimizer.weight_decay = 1e-2
-cfg.optimizer.momentum = 0.9
+cfg.optimizer.momentum = 0.9  # 仅用于 SGD
 cfg.optimizer.beta1 = 0.9
 cfg.optimizer.beta2 = 0.999
 cfg.optimizer.eps = 1e-8
@@ -73,6 +76,10 @@ writer = SummaryWriter(log_root)
 train_engine = TrainEngine(0, 0, DDP=False, SyncBatchNorm=False)
 train_engine.create_env(cfg)
 
+# 在这里检查优化器是否已创建
+if train_engine.optimizer_ is None:
+    raise ValueError("Optimizer has not been created. Check the create_env method.")
+
 # create transforms
 transforms_dict = {
     0: transforms_imagenet_train(img_size=(cfg.network.input_size, cfg.network.input_size)),
@@ -89,10 +96,21 @@ transform_test = transforms_dict_test
 
 # create dataset
 trainset = MultiClassificationProcessor(transform)
-trainset.load_data_from_txt(train_list, ctg_list)
+trainset.load_data_from_txt(train_list, ctg_list, '/home/tiancheng/Deepfake/DeepFakeDefenders/dataset/phase1/train_dataset/')
 
 valset = MultiClassificationProcessor(transform_test)
-valset.load_data_from_txt(val_list, ctg_list)
+valset.load_data_from_txt(val_list, ctg_list, '/home/tiancheng/Deepfake/DeepFakeDefenders/dataset/phase1/val_dataset/')
+
+# 根据配置决定是否使用部分数据
+def load_partial_data(dataset, ratio):
+    full_size = len(dataset)
+    partial_size = int(full_size * ratio)
+    return torch.utils.data.Subset(dataset, range(partial_size))
+
+# 根据配置决定是否使用部分数据
+if not cfg.train.use_full_data:
+    trainset = load_partial_data(trainset, cfg.train.partial_data_ratio)
+    valset = load_partial_data(valset, cfg.train.partial_data_ratio)
 
 # create dataloader
 train_loader = torch.utils.data.DataLoader(dataset=trainset,
@@ -116,7 +134,13 @@ f_open = open(train_log_txtFile, "w")
 best_test_mAP = 0.0
 best_test_idx = 0.0
 ema_start = True
-train_engine.ema_model = ModelEmaV3(train_engine.netloc_).cuda()
+train_engine.ema_model = ModelEmaV2(train_engine.netloc_).cuda()
+
+# 在训练循环开始前，打印使用的数据量
+print(f"Training on {'full' if cfg.train.use_full_data else 'partial'} dataset.")
+print(f"Number of training samples: {len(trainset)}")
+print(f"Number of validation samples: {len(valset)}")
+
 for epoch_idx in range(cfg.train.epoch_start, cfg.train.epoch_num):
     # train
     train_top1, train_loss, train_lr = train_engine.train_multi_class(train_loader=train_loader, epoch_idx=epoch_idx,
@@ -146,4 +170,3 @@ for epoch_idx in range(cfg.train.epoch_start, cfg.train.epoch_num):
 
     # curve lr
     writer.add_scalar('train_lr', train_lr, epoch_idx)
-

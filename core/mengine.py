@@ -40,6 +40,11 @@ class TrainEngine(object):
         self.top1_meter_ = MultiClassificationMetric()
         self.DDP = DDP
         self.SyncBN = SyncBatchNorm
+        self.optimizer_ = None
+
+    @property
+    def optimizer(self):
+        return self.optimizer_
 
     def create_env(self, cfg):
         # create network
@@ -59,13 +64,38 @@ class TrainEngine(object):
         self.criterion_ = nn.CrossEntropyLoss().cuda()
 
         # create optimizer
-        self.optimizer_ = torch.optim.AdamW(self.netloc_.parameters(), lr=cfg.optimizer.lr,
-                                                betas=(cfg.optimizer.beta1, cfg.optimizer.beta2), eps=cfg.optimizer.eps,
-                                                weight_decay=cfg.optimizer.weight_decay)
-
+        self.create_optimizer(cfg)
+        
         # create scheduler
         self.scheduler_ = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_, cfg.train.epoch_num,
                                                                          eta_min=cfg.scheduler.min_lr)
+
+    def create_optimizer(self, cfg):
+        if cfg.optimizer.name.lower() == 'adamw':
+            self.optimizer_ = torch.optim.AdamW(
+                self.netloc_.parameters(),
+                lr=cfg.optimizer.lr,
+                betas=(cfg.optimizer.beta1, cfg.optimizer.beta2),
+                eps=cfg.optimizer.eps,
+                weight_decay=cfg.optimizer.weight_decay
+            )
+        elif cfg.optimizer.name.lower() == 'adam':
+            self.optimizer_ = torch.optim.Adam(
+                self.netloc_.parameters(),
+                lr=cfg.optimizer.lr,
+                betas=(cfg.optimizer.beta1, cfg.optimizer.beta2),
+                eps=cfg.optimizer.eps,
+                weight_decay=cfg.optimizer.weight_decay
+            )
+        elif cfg.optimizer.name.lower() == 'sgd':
+            self.optimizer_ = torch.optim.SGD(
+                self.netloc_.parameters(),
+                lr=cfg.optimizer.lr,
+                momentum=cfg.optimizer.momentum,
+                weight_decay=cfg.optimizer.weight_decay
+            )
+        else:
+            raise ValueError(f"Unsupported optimizer: {cfg.optimizer.name}")
 
     def train_multi_class(self, train_loader, epoch_idx, ema_start):
         starttime = datetime.datetime.now()
@@ -216,38 +246,23 @@ class TrainEngine(object):
         # return
         return top1, loss, auc
 
-    def save_checkpoint(self, file_root, epoch_idx, train_map, val_map, ema_start):
-
-        file_name = os.path.join(file_root,
-                                 time.strftime('%Y%m%d-%H-%M', time.localtime()) + '-' + str(epoch_idx) + '.pth')
-
-        if self.DDP:
-            stact_dict = self.netloc_.module.state_dict()
-        else:
-            stact_dict = self.netloc_.state_dict()
-
-        torch.save(
-            {
-                'epoch_idx': epoch_idx,
-                'state_dict': stact_dict,
-                'train_map': train_map,
-                'val_map': val_map,
-                'lr': self.lr_,
-                'optimizer': self.optimizer_.state_dict(),
-                'scheduler': self.scheduler_.state_dict()
-            }, file_name)
-
+    def save_checkpoint(self, log_root, epoch_idx, train_top1, val_top1, ema_start):
+        save_path = os.path.join(log_root, f'checkpoint_epoch_{epoch_idx}.pth')
+        torch.save({
+            'epoch': epoch_idx,
+            'model_state_dict': self.netloc_.state_dict(),
+            'optimizer_state_dict': self.optimizer_.state_dict(),
+            'train_top1': train_top1,
+            'val_top1': val_top1,
+        }, save_path)
+        
         if ema_start:
-            ema_file_name = os.path.join(file_root,
-                                                     time.strftime('%Y%m%d-%H-%M', time.localtime()) + '-EMA-' + str(epoch_idx) + '.pth')
-            ema_stact_dict = self.ema_model.module.module.state_dict()
-            torch.save(
-                {
-                    'epoch_idx': epoch_idx,
-                    'state_dict': ema_stact_dict,
-                    'train_map': train_map,
-                    'val_map': val_map,
-                    'lr': self.lr_,
-                    'optimizer': self.optimizer_.state_dict(),
-                    'scheduler': self.scheduler_.state_dict()
-                }, ema_file_name)
+            ema_save_path = os.path.join(log_root, f'ema_checkpoint_epoch_{epoch_idx}.pth')
+            # 直接使用 self.ema_model 的 state_dict 方法
+            ema_state_dict = self.ema_model.state_dict()
+            torch.save({
+                'epoch': epoch_idx,
+                'ema_model_state_dict': ema_state_dict,
+                'train_top1': train_top1,
+                'val_top1': val_top1,
+            }, ema_save_path)
