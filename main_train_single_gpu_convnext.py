@@ -30,7 +30,7 @@ val_list = '/home/tiancheng/Deepfake/DeepFakeDefenders/dataset/phase1/val.txt'
 
 # : network
 cfg.network = CN(new_allowed=True)
-cfg.network.name = 'replknet'
+cfg.network.name = 'convnext'
 cfg.network.class_num = 2
 cfg.network.input_size = 384
 
@@ -46,8 +46,8 @@ cfg.train.batch_size = 16
 cfg.train.epoch_num = 20
 cfg.train.epoch_start = 0
 cfg.train.worker_num = 8
-cfg.train.use_full_data = True  # 设置为False时使用部分数据
-cfg.train.partial_data_ratio = 1.0  # 使用10%的数据进行初步训练
+cfg.train.use_full_data = False  # 设置为False时使用部分数据
+cfg.train.partial_data_ratio = 0.1  # 使用10%的数据进行初步训练
 
 # : optimizer params
 cfg.optimizer = CN(new_allowed=True)
