@@ -5,8 +5,8 @@ from collections import OrderedDict
 
 
 # Trained ConvNeXt and RepLKNet paths (for reference)
-convnext_path = '/home/tiancheng/Deepfake/DeepFakeDefenders/output/2024-10-23-23-04-40_convnext_to_competition_BinClass/ema_checkpoint_epoch_19.pth'
-replknet_path = '/home/tiancheng/Deepfake/DeepFakeDefenders/output/2024-10-23-11-14-28_replknet_to_competition_BinClass/checkpoint_epoch_19.pth'
+convnext_path = '/home/tiancheng/Deepfake/DeepFakeDefenders/output/2024-10-24-23-12-11_convnext_to_competition_BinClass/ema_checkpoint_epoch_7.pth'
+replknet_path = '/home/tiancheng/Deepfake/DeepFakeDefenders/output/2024-10-27-00-09-14_replknet_to_competition_BinClass/ema_checkpoint_epoch_6.pth'
 
 model = final_model()
 

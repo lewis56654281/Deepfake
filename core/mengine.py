@@ -68,8 +68,29 @@ class TrainEngine(object):
         
         # create scheduler
         self.scheduler_ = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_, cfg.train.epoch_num,
-                                                                         eta_min=cfg.scheduler.min_lr)
-
+                                                                     eta_min=cfg.scheduler.min_lr)
+        
+        # 加载检查点（如果需要）
+        if cfg.train.resume and cfg.train.resume_path:
+            print(f"Loading checkpoint from {cfg.train.resume_path}")
+            checkpoint = torch.load(cfg.train.resume_path)
+            
+            # 加载模型权重
+            if 'model_state_dict' in checkpoint:
+                self.netloc_.load_state_dict(checkpoint['model_state_dict'])
+                print("Loaded model state dict")
+                
+            # 加载优化器状态
+            if 'optimizer_state_dict' in checkpoint:
+                self.optimizer_.load_state_dict(checkpoint['optimizer_state_dict'])
+                print("Loaded optimizer state dict")
+                
+            # 更新学习率调度器
+            for _ in range(cfg.train.epoch_start):
+                self.scheduler_.step()
+                
+            print(f"Resumed from epoch {checkpoint['epoch']}")
+    
     def create_optimizer(self, cfg):
         if cfg.optimizer.name.lower() == 'adamw':
             self.optimizer_ = torch.optim.AdamW(

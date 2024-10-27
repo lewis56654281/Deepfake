@@ -58,7 +58,7 @@ def load_model(model_name, ctg_num, use_sync_bn):
     if model_name == 'convnext':
         model = convnext_base(num_classes=ctg_num)
         model_path = 'pre_model/convnext_base_1k_384.pth'
-        check_point = torch.load(model_path, map_location='cpu')['model']
+        check_point = torch.load(model_path, map_location='cpu', weights_only=True)['model']
         check_point.pop('head.weight')
         check_point.pop('head.bias')
         model.load_state_dict(check_point, strict=False)
@@ -81,4 +81,5 @@ def load_model(model_name, ctg_num, use_sync_bn):
     print("model_name", model_name)
 
     return model
+
 

@@ -109,7 +109,7 @@ class INFER_API:
 
         # model init
         self.model = load_model('all', 2 , use_sync_bn=False)
-        model_path = './final_model_csv/final_model.pth'
+        model_path = '/home/tiancheng/Deepfake/DeepFakeDefenders/final_model_csv/final_model.pth'
         self.model = extract_model_from_pth(model_path, self.model)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -199,7 +199,11 @@ def process_directory(directory_path, output_file, batch_size=32):
     with open(output_file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for path, result in zip(paths, results):
-            writer.writerow([path, result])
+            # 去除文件扩展名
+            filename_without_extension = os.path.splitext(os.path.basename(path))[0]
+            writer.writerow([filename_without_extension, result])
+
+    print(f"Results have been saved to {output_file}")
 
 
 def main():

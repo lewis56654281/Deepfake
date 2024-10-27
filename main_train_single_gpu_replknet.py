@@ -39,15 +39,15 @@ mean = (0.485, 0.456, 0.406)
 std = (0.229, 0.224, 0.225)
 
 cfg.train = CN(new_allowed=True)
-cfg.train.resume = False
-cfg.train.resume_path = ''
+cfg.train.resume = True  # ���改为True
+cfg.train.resume_path = '/home/tiancheng/Deepfake/DeepFakeDefenders/output/2024-10-26-00-01-16_replknet_to_competition_BinClass/checkpoint_epoch_3.pth'  # 设置检查点路径
 cfg.train.params_path = ''
 cfg.train.batch_size = 16
 cfg.train.epoch_num = 20
-cfg.train.epoch_start = 0
+cfg.train.epoch_start = 4  # 设置为您想继续训练的起始epoch
 cfg.train.worker_num = 8
-cfg.train.use_full_data = False  # 设置为False时使用部分数据
-cfg.train.partial_data_ratio = 0.1  # 使用10%的数据进行初步训练
+cfg.train.use_full_data = True  # 设置为False时使用部分数据
+cfg.train.partial_data_ratio = 1  # 使用10%的数据进行初步训练
 
 # : optimizer params
 cfg.optimizer = CN(new_allowed=True)
@@ -135,6 +135,15 @@ best_test_mAP = 0.0
 best_test_idx = 0.0
 ema_start = True
 train_engine.ema_model = ModelEmaV2(train_engine.netloc_).cuda()
+
+# 创建并加载 EMA 模型
+if cfg.train.resume and cfg.train.resume_path:
+    ema_checkpoint_path = cfg.train.resume_path.replace('checkpoint_', 'ema_checkpoint_')
+    if os.path.exists(ema_checkpoint_path):
+        ema_checkpoint = torch.load(ema_checkpoint_path)
+        if 'ema_model_state_dict' in ema_checkpoint:
+            train_engine.ema_model.load_state_dict(ema_checkpoint['ema_model_state_dict'])
+            print(f"Loaded EMA model from {ema_checkpoint_path}")
 
 # 在训练循环开始前，打印使用的数据量
 print(f"Training on {'full' if cfg.train.use_full_data else 'partial'} dataset.")
